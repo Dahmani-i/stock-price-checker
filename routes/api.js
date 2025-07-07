@@ -28,7 +28,6 @@ module.exports = function (app) {
             if (error) return reject('Failed to fetch stock data');
             console.log(`Stock: ${stock}, Body:`, body);
 
-
             try {
               const data = JSON.parse(body);
 
@@ -37,11 +36,37 @@ module.exports = function (app) {
               }
 
               const filter = { symbol: data.symbol };
-              const update = like ? { $inc: { likes: 1 } } : { $setOnInsert: { likes: 0 } };
-              const options = { upsert: true, returnDocument: 'after' };
+              const userIP = req.ip;
 
+              let update;
+              let options = { upsert: true, returnDocument: 'after' };
 
-              await collection.updateOne(filter, update, { upsert: true });
+              let result;
+
+              const existing = await collection.findOne(filter);
+
+              if (existing) {
+                const alreadyLiked = existing.ips && existing.ips.includes(userIP);
+
+                if (like && !alreadyLiked) {
+                  update = {
+                    $inc: { likes: 1 },
+                    $addToSet: { ips: userIP },
+                  };
+                  result = await collection.findOneAndUpdate(filter, update, options);
+                } else {
+                  result = { value: existing };
+                }
+              } else {
+                update = {
+                  $setOnInsert: {
+                    symbol: data.symbol,
+                    likes: like ? 1 : 0,
+                    ips: like ? [userIP] : [],
+                  },
+                };
+                result = await collection.findOneAndUpdate(filter, update, options);
+              }
 
               const doc = await collection.findOne(filter);
 
@@ -55,12 +80,10 @@ module.exports = function (app) {
                 likes: doc.likes,
               });
 
-
             } catch (e) {
-              console.error('Error during DB update or parsing:', e); // 👈 add this line
+              console.error('Error during DB update or parsing:', e);
               reject('Failed to parse API response');
             }
-
           });
         });
       };

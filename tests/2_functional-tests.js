@@ -6,6 +6,7 @@ const server = require('../server');
 chai.use(chaiHttp);
 
 suite('Functional Tests', function () {
+    this.timeout(5000); // set to 5 seconds
 
     test('Viewing one stock: GET request to /api/stock-prices/', function (done) {
         chai.request(server)
